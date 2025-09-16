@@ -1,0 +1,145 @@
+services:
+  # Nginx Web Server
+  nginx:
+    image: nginx:alpine
+    container_name: sso_nginx
+    ports:
+      - "80:80"
+    volumes:
+      # Ánh xạ mã nguồn của tất cả các app vào container nginx
+      - ./src:/var/www
+      # Ánh xạ file cấu hình nginx
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - auth-server-app
+      - cross-domain-app
+      - sub-domain-spa-app
+      - sub-domain-app
+    networks:
+      - app-network
+
+  # Auth Server
+  auth-server-app:
+    build:
+      context: . # Context là thư mục gốc để có thể truy cập cả thư mục src và docker
+      dockerfile: ./docker/php/Dockerfile # Đường dẫn tới Dockerfile
+      args:
+        - APP_DIR=auth-server # Truyền tên thư mục app vào Dockerfile
+    container_name: auth_server_app
+    working_dir: /var/www/auth-server
+    volumes:
+      - ./src/auth-server:/var/www/auth-server
+    environment:
+      SESSION_DRIVER: redis
+      CACHE_STORE: redis
+      QUEUE_CONNECTION: redis
+      REDIS_CLIENT: phpredis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - app-network
+
+  # Cross Domain client
+  cross-domain-app:
+    build:
+      context: .
+      dockerfile: ./docker/php/Dockerfile
+      args:
+        - APP_DIR=cross-domain
+    container_name: cross_domain_app
+    working_dir: /var/www/cross-domain
+    volumes:
+      - ./src/cross-domain:/var/www/cross-domain
+    environment:
+      SESSION_DRIVER: redis
+      CACHE_STORE: redis
+      QUEUE_CONNECTION: redis
+      REDIS_CLIENT: phpredis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - app-network
+
+  # Sub Domain SPA Client
+  sub-domain-spa-app:
+    build:
+      context: .
+      dockerfile: ./docker/php/Dockerfile
+      args:
+        - APP_DIR=sub-domain-spa
+    container_name: sub_domain_spa_app
+    working_dir: /var/www/sub-domain-spa
+    volumes:
+      - ./src/sub-domain-spa:/var/www/sub-domain-spa
+    environment:
+      SESSION_DRIVER: redis
+      CACHE_STORE: redis
+      QUEUE_CONNECTION: redis
+      REDIS_CLIENT: phpredis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - app-network
+
+  # Sub Domain Client
+  sub-domain-app:
+    build:
+      context: .
+      dockerfile: ./docker/php/Dockerfile
+      args:
+        - APP_DIR=sub-domain
+    container_name: sub_domain_app
+    working_dir: /var/www/sub-domain
+    volumes:
+      - ./src/sub-domain:/var/www/sub-domain
+    environment:
+      SESSION_DRIVER: redis
+      CACHE_STORE: redis
+      QUEUE_CONNECTION: redis
+      REDIS_CLIENT: phpredis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - app-network
+
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: sso_mysql
+    restart: unless-stopped
+    ports:
+      - "33066:3306"
+    environment:
+      MYSQL_DATABASE: sso
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - app-network
+
+  # Redis
+  redis:
+    image: redis:alpine
+    container_name: sso_redis
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  db_data:
+    driver: local
